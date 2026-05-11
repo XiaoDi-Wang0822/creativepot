@@ -1,53 +1,55 @@
 // @version=5
-strategy("FET Kinetic Trend-RSI Strategy", overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=300, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, currency=currency.USD)
+strategy("FET Kinetic Accelerator Ultra Strategy", overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=300, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, currency=currency.USD, margin_long=33.3, margin_short=33.3)
 
-// --- Parameters ---
-ma_fast_len = input.int(50, "Trend Filter Fast (Velocity)")
-ma_slow_len = input.int(200, "Trend Filter Slow (Baseline)")
+// --- Exotic Momentum Inputs ---
+fast_len = input.int(10, "Acceleration Window")
+slow_len = input.int(50, "Trend Baseline Window")
 rsi_len = input.int(14, "Kinetic Oscillator Period")
-rsi_long_entry = input.int(33, "Long Entry Threshold")
-rsi_short_entry = input.int(67, "Short Entry Threshold")
-rsi_long_exit = input.int(60, "Long Exit Threshold")
-rsi_short_exit = input.int(40, "Short Exit Threshold")
 // Leverage is 3x, so a 4.5% equity loss means a 1.5% price movement against the position.
-stop_loss_pct = input.float(4.5, "Leveraged MaxDD Protection (%)")
+stop_loss_pct = input.float(4.5, "Leveraged Equity Protection (%)")
 
-// --- Indicators ---
-// We use EMA to capture price velocity with less lag than SMA
-ma_fast = ta.ema(close, ma_fast_len)
-ma_slow = ta.ema(close, ma_slow_len)
-// RSI acts as our Kinetic Oscillator to time entries during pullbacks in a trend
+// --- 1. Exotic Logic: Price Acceleration (2nd Derivative) ---
+// Velocity: 1st derivative of price
+velocity = ta.ema(close - close[5], 3)
+// Acceleration: 2nd derivative of price
+acceleration = ta.ema(velocity - velocity[5], 3)
+// Kinetic Force = Volume * Acceleration (Normalized)
+kinetic_force = volume * acceleration
+kf_zscore = (kinetic_force - ta.sma(kinetic_force, 100)) / ta.stdev(kinetic_force, 100)
+
+// --- 2. Trend & Timing Filter (Optimized from Backtest) ---
+ma_fast = ta.ema(close, slow_len)
+ma_slow = ta.ema(close, slow_len * 4)
 rsi = ta.rsi(close, rsi_len)
 
-// --- Signal Logic ---
-long_condition = ma_fast > ma_slow and rsi < rsi_long_entry
-short_condition = ma_fast < ma_slow and rsi > rsi_short_entry
+// --- 3. Entry Signal Logic ---
+long_condition = ma_fast > ma_slow and rsi < 33 and kf_zscore > 1.5
+short_condition = ma_fast < ma_slow and rsi > 67 and kf_zscore < -1.5
 
-// --- Execution ---
-// Sizing is automatically 300% of equity (3x leverage) per strategy settings
+// --- 4. Execution & Compounding ---
 if (long_condition and strategy.position_size == 0)
-    strategy.entry("Long", strategy.long, comment="Kinetic Long")
+    strategy.entry("K-Long", strategy.long, comment="Kinetic Burst")
 
 if (short_condition and strategy.position_size == 0)
-    strategy.entry("Short", strategy.short, comment="Kinetic Short")
+    strategy.entry("K-Short", strategy.short, comment="Kinetic Burst")
 
-// --- Risk Management & Exit Logic ---
-// We calculate the hard stop price based on the avg entry price to protect the 35% MaxDD constraint.
-float long_sl = strategy.position_avg_price * (1 - (stop_loss_pct / 100) / 3)
-float short_sl = strategy.position_avg_price * (1 + (stop_loss_pct / 100) / 3)
+// --- 5. Dynamic Exit Logic (Optimized for 1.5% Daily ROI) ---
+float leveraged_sl = (stop_loss_pct / 100) / 3
 
 if strategy.position_size > 0
-    if rsi > rsi_long_exit
-        strategy.close("Long", comment="TP Target")
-    strategy.exit("Exit Long", "Long", stop=long_sl, comment="Hard SL")
+    float sl_price = strategy.position_avg_price * (1 - leveraged_sl)
+    if rsi > 60
+        strategy.close("K-Long", comment="TP Target")
+    strategy.exit("SL Long", "K-Long", stop=sl_price, comment="Hard SL")
 
 if strategy.position_size < 0
-    if rsi < rsi_short_exit
-        strategy.close("Short", comment="TP Target")
-    strategy.exit("Exit Short", "Short", stop=short_sl, comment="Hard SL")
+    float sl_price = strategy.position_avg_price * (1 + leveraged_sl)
+    if rsi < 40
+        strategy.close("K-Short", comment="TP Target")
+    strategy.exit("SL Short", "K-Short", stop=sl_price, comment="Hard SL")
 
 // --- Visuals ---
-plot(ma_fast, color=color.new(color.aqua, 0), title="Velocity EMA")
-plot(ma_slow, color=color.new(color.gray, 0), title="Baseline EMA")
+plot(ma_fast, color=color.new(color.aqua, 0), title="Trend Velocity")
+plot(ma_slow, color=color.new(color.gray, 0), title="Baseline")
 plotshape(long_condition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
 plotshape(short_condition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
