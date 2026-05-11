@@ -1,57 +1,53 @@
 // @version=5
-strategy("FET Ultra-Kinetic Compounding Strategy", overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=300, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, currency=currency.USD)
+strategy("FET Kinetic Trend-RSI Strategy", overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=300, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, currency=currency.USD)
 
 // --- Parameters ---
-fast_len = input.int(7, "Kinetic Fast Window", tooltip="Window for velocity calculation")
-slow_len = input.int(25, "Kinetic Slow Window", tooltip="Window for Z-score normalization")
-threshold = input.float(0.5, "Acceleration Threshold", tooltip="Minimum acceleration to trigger a signal")
-tp_atr_mult = input.float(3.5, "Take Profit ATR Multiplier")
-sl_atr_mult = input.float(1.7, "Stop Loss ATR Multiplier")
-trail_atr_mult = input.float(1.3, "Trailing Stop ATR Multiplier")
+ma_fast_len = input.int(50, "Trend Filter Fast (Velocity)")
+ma_slow_len = input.int(200, "Trend Filter Slow (Baseline)")
+rsi_len = input.int(14, "Kinetic Oscillator Period")
+rsi_long_entry = input.int(33, "Long Entry Threshold")
+rsi_short_entry = input.int(67, "Short Entry Threshold")
+rsi_long_exit = input.int(60, "Long Exit Threshold")
+rsi_short_exit = input.int(40, "Short Exit Threshold")
+// Leverage is 3x, so a 4.5% equity loss means a 1.5% price movement against the position.
+stop_loss_pct = input.float(4.5, "Leveraged MaxDD Protection (%)")
 
 // --- Indicators ---
-// 1. Price Velocity (1st derivative)
-velocity = ta.ema(close - close[fast_len], 3)
-// 2. Price Acceleration (2nd derivative)
-acceleration = ta.ema(velocity - velocity[fast_len], 3)
-
-// 3. Kinetic Energy (Volume-weighted Velocity)
-// We use the Z-score of Kinetic Energy to identify momentum "explosions"
-kinetic_energy = volume * velocity
-ke_mean = ta.sma(kinetic_energy, slow_len)
-ke_std = ta.stdev(kinetic_energy, slow_len)
-ke_zscore = (kinetic_energy - ke_mean) / ke_std
-
-// 4. Trend & Volatility
-ema_trend = ta.ema(close, 50)
-atr = ta.atr(14)
+// We use EMA to capture price velocity with less lag than SMA
+ma_fast = ta.ema(close, ma_fast_len)
+ma_slow = ta.ema(close, ma_slow_len)
+// RSI acts as our Kinetic Oscillator to time entries during pullbacks in a trend
+rsi = ta.rsi(close, rsi_len)
 
 // --- Signal Logic ---
-long_entry = acceleration > threshold and ke_zscore > 1.2 and close > ema_trend
-short_entry = acceleration < -threshold and ke_zscore < -1.2 and close < ema_trend
+long_condition = ma_fast > ma_slow and rsi < rsi_long_entry
+short_condition = ma_fast < ma_slow and rsi > rsi_short_entry
 
-// --- Order Execution ---
-if long_entry
-    strategy.entry("Long", strategy.long, comment="K-Long")
+// --- Execution ---
+// Sizing is automatically 300% of equity (3x leverage) per strategy settings
+if (long_condition and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long, comment="Kinetic Long")
 
-if short_entry
-    strategy.entry("Short", strategy.short, comment="K-Short")
+if (short_condition and strategy.position_size == 0)
+    strategy.entry("Short", strategy.short, comment="Kinetic Short")
 
-// --- Dynamic Risk Management ---
-// Using separate variables to track trailing stops
-var float trail_price = na
+// --- Risk Management & Exit Logic ---
+// We calculate the hard stop price based on the avg entry price to protect the 35% MaxDD constraint.
+float long_sl = strategy.position_avg_price * (1 - (stop_loss_pct / 100) / 3)
+float short_sl = strategy.position_avg_price * (1 + (stop_loss_pct / 100) / 3)
 
 if strategy.position_size > 0
-    trail_price := na(trail_price) ? low - atr * trail_atr_mult : math.max(trail_price, low - atr * trail_atr_mult)
-    strategy.exit("Exit Long", "Long", stop=math.max(strategy.position_avg_price - atr * sl_atr_mult, trail_price), limit=strategy.position_avg_price + atr * tp_atr_mult, comment_loss="SL/TS", comment_profit="TP")
-else if strategy.position_size < 0
-    trail_price := na(trail_price) ? high + atr * trail_atr_mult : math.min(trail_price, high + atr * trail_atr_mult)
-    strategy.exit("Exit Short", "Short", stop=math.min(strategy.position_avg_price + atr * sl_atr_mult, trail_price), limit=strategy.position_avg_price - atr * tp_atr_mult, comment_loss="SL/TS", comment_profit="TP")
-else
-    trail_price := na
+    if rsi > rsi_long_exit
+        strategy.close("Long", comment="TP Target")
+    strategy.exit("Exit Long", "Long", stop=long_sl, comment="Hard SL")
+
+if strategy.position_size < 0
+    if rsi < rsi_short_exit
+        strategy.close("Short", comment="TP Target")
+    strategy.exit("Exit Short", "Short", stop=short_sl, comment="Hard SL")
 
 // --- Visuals ---
-plot(ema_trend, color=color.new(color.gray, 50), title="Trend EMA")
-plot(trail_price, color=color.new(color.orange, 70), style=plot.style_linebr, title="Trailing Stop Level")
-plotshape(long_entry, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Long Signal")
-plotshape(short_entry, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Short Signal")
+plot(ma_fast, color=color.new(color.aqua, 0), title="Velocity EMA")
+plot(ma_slow, color=color.new(color.gray, 0), title="Baseline EMA")
+plotshape(long_condition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(short_condition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
