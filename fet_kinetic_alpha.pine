@@ -1,0 +1,96 @@
+//@version=5
+strategy("Kinetic Alpha Humanoid FET", overlay=true,
+     initial_capital=1000,
+     currency=currency.USD,
+     commission_type=strategy.commission.percent,
+     commission_value=0.06,
+     slippage=3,
+     default_qty_type=strategy.cash_proportion,
+     default_qty_value=100,
+     margin_long=33.3,
+     margin_short=33.3)
+
+/*
+    FET Kinetic Alpha Humanoid Strategy
+    -----------------------------------
+    Designed for FETUSDT on the 4H timeframe.
+    - Leverage: 3x (Adaptive)
+    - Target: High ROI with MaxDD < 35%
+    - Logic: Multi-timeframe trend filter + Kinetic Velocity + Volatility Acceleration
+    - Execution: Simulates human-like decision making by reducing risk in drawdowns.
+*/
+
+// --- Inputs ---
+emaFastLen = input.int(50, "Fast Trend EMA", minval=1, help="Used for momentum direction")
+emaSlowLen = input.int(200, "Slow Trend EMA", minval=1, help="Used for major trend filter")
+vLen = input.int(5, "Velocity Period", minval=1, help="Lookback for price change")
+vSmoothLen = input.int(10, "Velocity Smoothing", minval=1)
+donchLen = input.int(15, "Breakout Lookback", minval=1, help="Lookback for entry breakout")
+trailLen = input.int(25, "Trailing Stop Lookback", minval=1, help="Lookback for trailing stop")
+hardStopPct = input.float(5.0, "Hard Stop %", minval=0.1) / 100
+
+// --- Indicators ---
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+
+// Kinetic Velocity (Price Change Rate Smoothed)
+velocity = ta.ema(close - close[vLen], vSmoothLen)
+
+// Volatility Filter (Ensures we trade in active regimes)
+atrShort = ta.atr(20)
+atrLong = ta.atr(100)
+volFilter = atrShort > atrLong * 0.9
+
+// Entry Levels
+highBreak = ta.highest(high[1], donchLen)
+lowBreak = ta.lowest(low[1], donchLen)
+
+// --- Dynamic Risk Management (Human-like) ---
+var float maxEquity = 0.0
+maxEquity := math.max(maxEquity, strategy.equity)
+currentDD = (strategy.equity - maxEquity) / maxEquity
+
+// Adaptive Leverage: If drawdown exceeds 15%, cut leverage to 1.5x to protect capital.
+// If drawdown hits 30%, stop trading to preserve 35% limit.
+leverageFactor = currentDD < -0.30 ? 0.0 : currentDD < -0.15 ? 1.5 : 3.0
+
+// --- Entry Logic ---
+longSignal = close > emaSlow and emaFast > emaSlow and velocity > 0 and velocity > velocity[1] and volFilter and close > highBreak and leverageFactor > 0
+shortSignal = close < emaSlow and emaFast < emaSlow and velocity < 0 and velocity < velocity[1] and volFilter and close < lowBreak and leverageFactor > 0
+
+// Position Sizing
+qtySize = (strategy.equity * leverageFactor) / close
+
+if (longSignal and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long, qty=qtySize, comment="Kinetic Up")
+
+if (shortSignal and strategy.position_size == 0)
+    strategy.entry("Short", strategy.short, qty=qtySize, comment="Kinetic Down")
+
+// --- Exit Logic (Trailing & Protective) ---
+var float activeStop = na
+
+if (strategy.position_size > 0)
+    trailStop = ta.lowest(low[1], trailLen)
+    hStop = strategy.position_avg_price * (1 - hardStopPct)
+    activeStop := math.max(trailStop, hStop)
+    strategy.exit("Exit Long", "Long", stop=activeStop, comment_loss="Stop", comment_profit="Trail")
+
+else if (strategy.position_size < 0)
+    trailStop = ta.highest(high[1], trailLen)
+    hStop = strategy.position_avg_price * (1 + hardStopPct)
+    activeStop := math.min(trailStop, hStop)
+    strategy.exit("Exit Short", "Short", stop=activeStop, comment_loss="Stop", comment_profit="Trail")
+else
+    activeStop := na
+
+// --- Visuals ---
+plot(emaSlow, color=color.new(color.gray, 60), title="Trend Base")
+plot(emaFast, color=color.new(color.blue, 60), title="Momentum Base")
+plot(activeStop, color=color.new(color.red, 0), style=plot.style_linebr, title="Active Stop")
+
+// Trend Ribbon
+fill(plot(emaFast), plot(emaSlow), color = emaFast > emaSlow ? color.new(color.green, 90) : color.new(color.red, 90))
+
+// Background signals
+bgcolor(longSignal ? color.new(color.green, 90) : shortSignal ? color.new(color.red, 90) : na)
