@@ -1,26 +1,14 @@
 //@version=5
-strategy("FET Humanoid Kinetic ALPHA", overlay=true,
-     initial_capital=1000,
-     currency=currency.USD,
-     commission_type=strategy.commission.percent,
-     commission_value=0.06,
-     slippage=3,
-     default_qty_type=strategy.cash_proportion,
-     default_qty_value=100,
-     margin_long=33.3,
-     margin_short=33.3)
+strategy("FET Humanoid Kinetic ALPHA", overlay=true, initial_capital=1000, currency=currency.USD, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, default_qty_type=strategy.cash_proportion, default_qty_value=100, margin_long=33.3, margin_short=33.3)
 
-/*
-    FETUSDT Humanoid Kinetic ALPHA
-    -------------------------------
-    Requirements Met:
-    1. Trades: >100 (Optimized for 15m/1h)
-    2. Commission: 0.06% Percent-based
-    3. Slippage: 3 Ticks
-    4. ROI: Compounding Enabled
-    5. MaxDD: <35% (via Adaptive Risk reduction)
-    6. History: All-time FET data compatibility
-*/
+// FETUSDT Humanoid Kinetic ALPHA
+// Requirements Met:
+// 1. Trades: >100 (Optimized for 15m/1h)
+// 2. Commission: 0.06% Percent-based
+// 3. Slippage: 3 Ticks
+// 4. ROI: Compounding Enabled
+// 5. MaxDD: <35% (via Adaptive Risk reduction)
+// 6. History: All-time FET data compatibility
 
 // --- Inputs ---
 grp_logic = "Strategy Parameters"
@@ -54,16 +42,13 @@ currentDD = (strategy.equity - maxEquity) / maxEquity
 
 // Adaptive Leverage:
 // If equity drops, reduce position size to stay under the 35% MaxDD limit.
-leverageFactor = not useAdaptive ? 1.0 :
-                 currentDD < -maxDDLimit ? 0.0 :
-                 currentDD < -0.18 ? 0.4 : 1.0
+leverageFactor = not useAdaptive ? 1.0 : currentDD < -maxDDLimit ? 0.0 : currentDD < -0.18 ? 0.4 : 1.0
 
 // --- Entry Logic ---
 longSignal = ta.crossover(close, upper) and close > emaTrend and pulse > 0 and volConfirm and leverageFactor > 0
 shortSignal = ta.crossunder(close, lower) and close < emaTrend and pulse < 0 and volConfirm and leverageFactor > 0
 
-// Execute with Compounding (100% of Equity * Leverage Factor)
-// 3x leverage is handled by TradingView's margin_long=33.3 settings.
+// Execute with Compounding
 if (longSignal and strategy.position_size == 0)
     strategy.entry("Long", strategy.long, qty=strategy.equity * leverageFactor / close, comment="Kinetic Blast")
 
