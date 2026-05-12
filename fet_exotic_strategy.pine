@@ -1,55 +1,55 @@
 // @version=5
-strategy("FET Kinetic Accelerator Ultra Strategy", overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=300, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, currency=currency.USD, margin_long=33.3, margin_short=33.3)
+strategy("FET Kinetic Alpha Scalp (MaxDD < 35%)", overlay=true, initial_capital=100, default_qty_type=strategy.percent_of_equity, default_qty_value=300, commission_type=strategy.commission.percent, commission_value=0.06, slippage=3, currency=currency.USD, margin_long=33.3, margin_short=33.3)
 
-// --- Exotic Momentum Inputs ---
-fast_len = input.int(10, "Acceleration Window")
-slow_len = input.int(50, "Trend Baseline Window")
-rsi_len = input.int(14, "Kinetic Oscillator Period")
-// Leverage is 3x, so a 4.5% equity loss means a 1.5% price movement against the position.
-stop_loss_pct = input.float(4.5, "Leveraged Equity Protection (%)")
+// --- Strategy Inputs ---
+trend_fast = input.int(20, "Trend Filter Fast")
+trend_slow = input.int(100, "Trend Filter Slow")
+rsi_period = input.int(7, "Kinetic Momentum Period")
+rsi_en_l = input.int(20, "Long Entry RSI")
+rsi_en_h = input.int(80, "Short Entry RSI")
+rsi_ex_h = input.int(75, "Long Exit RSI")
+rsi_ex_l = input.int(25, "Short Exit RSI")
+// 1.2% price move = 3.6% equity loss at 3x leverage.
+sl_pct = input.float(1.2, "Price Stop Loss (%)", step=0.1)
 
 // --- 1. Exotic Logic: Price Acceleration (2nd Derivative) ---
-// Velocity: 1st derivative of price
-velocity = ta.ema(close - close[5], 3)
-// Acceleration: 2nd derivative of price
-acceleration = ta.ema(velocity - velocity[5], 3)
-// Kinetic Force = Volume * Acceleration (Normalized)
-kinetic_force = volume * acceleration
-kf_zscore = (kinetic_force - ta.sma(kinetic_force, 100)) / ta.stdev(kinetic_force, 100)
+// We use a custom EMA-smoothed difference to identify "Kinetic Bursts"
+v = ta.ema(close - close[3], 5)
+a = ta.ema(v - v[3], 5)
 
-// --- 2. Trend & Timing Filter (Optimized from Backtest) ---
-ma_fast = ta.ema(close, slow_len)
-ma_slow = ta.ema(close, slow_len * 4)
-rsi = ta.rsi(close, rsi_len)
+// --- 2. Trend & Timing Filters ---
+ma_f = ta.sma(close, trend_fast)
+ma_s = ta.sma(close, trend_slow)
+rsi = ta.rsi(close, rsi_period)
 
 // --- 3. Entry Signal Logic ---
-long_condition = ma_fast > ma_slow and rsi < 33 and kf_zscore > 1.5
-short_condition = ma_fast < ma_slow and rsi > 67 and kf_zscore < -1.5
+// We combine Trend direction, RSI exhaustion, and Price Acceleration
+long_signal = ma_f > ma_s and rsi < rsi_en_l and a > 0
+short_signal = ma_f < ma_s and rsi > rsi_en_h and a < 0
 
-// --- 4. Execution & Compounding ---
-if (long_condition and strategy.position_size == 0)
-    strategy.entry("K-Long", strategy.long, comment="Kinetic Burst")
+if (long_signal and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long, comment="Kinetic Entry")
 
-if (short_condition and strategy.position_size == 0)
-    strategy.entry("K-Short", strategy.short, comment="Kinetic Burst")
+if (short_signal and strategy.position_size == 0)
+    strategy.entry("Short", strategy.short, comment="Kinetic Entry")
 
-// --- 5. Dynamic Exit Logic (Optimized for 1.5% Daily ROI) ---
-float leveraged_sl = (stop_loss_pct / 100) / 3
+// --- 4. Dynamic Exit & Risk Management ---
+// Hard Stop Loss calculation
+long_sl = strategy.position_avg_price * (1 - sl_pct / 100)
+short_sl = strategy.position_avg_price * (1 + sl_pct / 100)
 
 if strategy.position_size > 0
-    float sl_price = strategy.position_avg_price * (1 - leveraged_sl)
-    if rsi > 60
-        strategy.close("K-Long", comment="TP Target")
-    strategy.exit("SL Long", "K-Long", stop=sl_price, comment="Hard SL")
+    if rsi > rsi_ex_h
+        strategy.close("Long", comment="RSI Target")
+    strategy.exit("SL Long", "Long", stop=long_sl, comment="Hard SL")
 
 if strategy.position_size < 0
-    float sl_price = strategy.position_avg_price * (1 + leveraged_sl)
-    if rsi < 40
-        strategy.close("K-Short", comment="TP Target")
-    strategy.exit("SL Short", "K-Short", stop=sl_price, comment="Hard SL")
+    if rsi < rsi_ex_l
+        strategy.close("Short", comment="RSI Target")
+    strategy.exit("SL Short", "Short", stop=short_sl, comment="Hard SL")
 
 // --- Visuals ---
-plot(ma_fast, color=color.new(color.aqua, 0), title="Trend Velocity")
-plot(ma_slow, color=color.new(color.gray, 0), title="Baseline")
-plotshape(long_condition, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
-plotshape(short_condition, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
+plot(ma_f, color=color.new(color.aqua, 0), title="Trend Fast")
+plot(ma_s, color=color.new(color.orange, 0), title="Trend Slow")
+plotshape(long_signal, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(short_signal, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)
