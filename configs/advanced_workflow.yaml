@@ -1,12 +1,16 @@
 data:
   exchange_id: 'mexc'
-  limit: 5
+  limit: 10
   timeframe: '1m'
-  start_time: '2026-06-06T00:00:00Z'
+  start_time: '2026-06-05T00:00:00Z'
   end_time: '2026-06-07T00:00:00Z'
-  train_end: '2026-06-06T18:00:00Z'
+  train_end: '2026-06-06T12:00:00Z' # Used for single task
   bin_dir: 'data/bin'
   raw_dir: 'data/raw'
+
+rolling:
+  train_len: '1d'
+  step_len: '6h'
 
 model:
   type: 'LightGBM'
@@ -18,18 +22,15 @@ backtest:
   cash: 10000
   commission: 0.0006
   slippage_ticks: 3
-  topk: 2
+  topk: 5
 
 analysis:
-  output_report: 'optimized_report.html'
+  output_report: 'rolling_report.html'
 
-# Optimization Goals
 optimization_goals:
   Sharpe Ratio: 1.5
   Profit Factor: 1.5
 
-# Search Space for Optimization
 search_space:
-  learning_rate: [0.01, 0.05, 0.1]
-  num_leaves: [15, 31, 63]
-  topk: [2, 5]
+  learning_rate: [0.01, 0.05]
+  topk: [3, 5]

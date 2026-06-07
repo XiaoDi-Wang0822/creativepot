@@ -1,17 +1,14 @@
-# Crypto Qlib
+# Crypto Qlib (Ultimate Version)
 
-這是一個專門為加密貨幣設計的高性能量化研究生態系統，架構模仿了 Microsoft Qlib。
+這是一個專門為加密貨幣設計的高性能量化研究生態系統，完整複製了 Microsoft Qlib 的核心架構，並針對加密市場優化。
 
-## 核心模塊
+## 核心亮點
 
-- `data`: 高性能二進制存儲系統，包含自動化數據管線（Data Pipeline）。
-- `features`: 提供 Alpha158、Alpha360 及加密貨幣特色因子。
-- `models`: 封裝了 LightGBM、GRU 以及先進的 **Transformer** 模型。
-- `strategy`: 提供 Top-K 等量化選幣策略。
-- `backtest`: 支持分鐘級回測，包含資產特定的滑點與手續費模型。
-- `trade`: 提供 **Dry Run (模擬盤)** 交易橋接器。
-- `analysis`: 自動生成互動式 HTML 報告，包含 Sharpe Ratio、Profit Factor 等關鍵指標。
-- `workflow`: 使用 YAML 配置文件驅動整個實驗流程。支持 **目標驅動優化 (Goal-Driven Optimization)**。
+- **高性能二進制數據層 (High-Performance Data Layer)**：仿照 Qlib 實現 Column-based Binary Storage，秒級加載分鐘數據。
+- **滾動式訓練與學習 (Rolling Training & Tasks)**：內置滾動窗口管理器，模擬真實交易中的定期重訓邏輯（Train -> Predict -> Shift）。
+- **目標驅動優化 (Goal-Driven Optimization)**：自動尋優直至達成預設目標（如 Sharpe > 1.5, Profit Factor > 1.5）。
+- **多模型支持 (AI Model Zoo)**：包含 LightGBM, GRU, 以及進階的 **Transformer**。
+- **高精度回測 (Precision Backtest)**：支持 **3-Tick 資產特定滑點**、手續費模型與分鐘級選幣。
 
 ## 快速開始
 
@@ -20,28 +17,32 @@
    pip install ccxt pandas numpy pyyaml plotly scipy statsmodels torch lightgbm tqdm
    ```
 
-2. 數據下載與實驗運行：
-   在 `configs/advanced_workflow.yaml` 配置好參數後運行：
+2. 運行滾動式實驗 (Rolling Experiment)：
+   在 `configs/advanced_workflow.yaml` 配置 `rolling` 參數後運行：
    ```python
    from crypto_qlib.workflow.manager import WorkflowManager
    wm = WorkflowManager('configs/advanced_workflow.yaml')
-   wm.run_experiment()
+   wm.run_experiment(rolling=True)
    ```
 
-3. 目標驅動優化 (自動尋參直到達標)：
-   您可以設置目標（如夏普率 > 1.5），系統會自動在搜尋空間內迭代。
+3. 自動尋優 (Optimization Loop)：
    ```python
    from crypto_qlib.workflow.optimizer import GoalOptimizer
    opt = GoalOptimizer('configs/advanced_workflow.yaml')
-   best_config, best_metrics = opt.run(max_trials=50)
+   best_config, best_metrics = opt.run(max_trials=50, rolling=True)
    ```
 
-4. 模擬盤運行 (Dry Run)：
+4. 模擬盤 (Dry Run)：
    ```python
    from crypto_qlib.trade.bridge import DryRunBridge
-   bridge = DryRunBridge(exchange_id='mexc', symbols=['BTC/USDT'], model=your_model)
+   bridge = DryRunBridge(exchange_id='mexc', symbols=['BTC/USDT', 'ETH/USDT'], model=your_model)
    bridge.step()
    ```
 
+## 配置說明 (`advanced_workflow.yaml`)
+- `rolling`: 設置 `train_len` (訓練長度) 和 `step_len` (滾動步長)。
+- `optimization_goals`: 設置達標門檻。
+- `search_space`: 設置超參數搜尋範圍。
+
 ## 輸出
-系統會生成一個包含累積報酬、最大回撤、IC 分佈等圖表的 HTML 報告（如 `advanced_report.html`）。
+系統會生成互動式 HTML 報告，包含累積報酬、最大回撤、IC 分佈及滾動訓練的各項性能指標。

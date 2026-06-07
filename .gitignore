@@ -1,0 +1,6 @@
+data/
+*.html
+*.json
+configs/temp_opt_config.yaml
+__pycache__/
+*.pyc
