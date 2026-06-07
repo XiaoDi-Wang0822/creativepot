@@ -1,0 +1,23 @@
+data:
+  bin_dir: 'data/bin_test'
+  instruments: ['BTC_USDT', 'ETH_USDT']
+  start_time: '2023-01-01 00:00:00'
+  end_time: '2023-01-01 03:00:00'
+  train_end: '2023-01-01 02:00:00'
+
+model:
+  type: 'LightGBM'
+  params:
+    objective: 'regression'
+    metric: 'rmse'
+    verbosity: -1
+
+backtest:
+  cash: 1000000
+  commission: 0.0006
+  slippage_ticks: 3
+  tick_size: 0.1
+  topk: 1
+
+analysis:
+  output_report: 'final_report.html'
