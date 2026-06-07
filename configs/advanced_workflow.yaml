@@ -1,0 +1,28 @@
+data:
+  exchange_id: 'mexc'
+  limit: 5
+  timeframe: '1m'
+  # Note: Dates are in 2026 to match the environment's system time for recent data
+  start_time: '2026-06-06T00:00:00Z'
+  end_time: '2026-06-07T00:00:00Z'
+  train_end: '2026-06-06T18:00:00Z'
+  bin_dir: 'data/bin'
+  raw_dir: 'data/raw'
+
+model:
+  type: 'Transformer'
+  params:
+    d_model: 64
+    nhead: 4
+    num_layers: 2
+    epochs: 5
+    batch_size: 1024
+
+backtest:
+  cash: 10000
+  commission: 0.0006
+  slippage_ticks: 3
+  topk: 2
+
+analysis:
+  output_report: 'advanced_report.html'

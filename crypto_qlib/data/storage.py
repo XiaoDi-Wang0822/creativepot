@@ -16,7 +16,7 @@ class HighPerformanceStorage:
             os.makedirs(self.bin_dir)
 
     def _get_symbol_dir(self, symbol):
-        safe_symbol = symbol.replace('/', '_')
+        safe_symbol = symbol.replace('/', '_').replace(':', '_')
         path = os.path.join(self.bin_dir, safe_symbol)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -66,11 +66,14 @@ class HighPerformanceStorage:
 
         df = pd.DataFrame(data)
         df['timestamp'] = timestamps
+        # Use naive datetimes to avoid timezone comparison issues
         df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
 
         if start_time:
-            df = df[df['datetime'] >= pd.to_datetime(start_time)]
+            st = pd.to_datetime(start_time).replace(tzinfo=None)
+            df = df[df['datetime'] >= st]
         if end_time:
-            df = df[df['datetime'] <= pd.to_datetime(end_time)]
+            et = pd.to_datetime(end_time).replace(tzinfo=None)
+            df = df[df['datetime'] <= et]
 
         return df

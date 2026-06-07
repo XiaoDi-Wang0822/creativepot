@@ -4,13 +4,14 @@
 
 ## 核心模塊
 
-- `data`: 高性能二進制存儲系統，支持分鐘級數據。
+- `data`: 高性能二進制存儲系統，包含自動化數據管線（Data Pipeline）。
 - `features`: 提供 Alpha158、Alpha360 及加密貨幣特色因子。
-- `models`: 封裝了 LightGBM 與 GRU (PyTorch) 等模型。
+- `models`: 封裝了 LightGBM、GRU 以及先進的 **Transformer** 模型。
 - `strategy`: 提供 Top-K 等量化選幣策略。
-- `backtest`: 支持分鐘級回測，包含滑點與手續費模型。
-- `analysis`: 自動生成與 Qlib 風格一致的互動式 HTML 報告。
-- `workflow`: 支持使用 YAML 配置文件驅動整個實驗流程。
+- `backtest`: 支持分鐘級回測，包含資產特定的滑點與手續費模型。
+- `trade`: 提供 **Dry Run (模擬盤)** 交易橋接器。
+- `analysis`: 自動生成互動式 HTML 報告。
+- `workflow`: 使用 YAML 配置文件驅動整個實驗流程。
 
 ## 快速開始
 
@@ -19,15 +20,21 @@
    pip install ccxt pandas numpy pyyaml plotly scipy statsmodels torch lightgbm tqdm
    ```
 
-2. 配置文件：
-   參考 `configs/workflow_config.yaml` 設置數據路徑、模型參數與回測選項。
-
-3. 運行實驗：
+2. 數據下載與實驗運行：
+   在 `configs/advanced_workflow.yaml` 配置好參數後運行：
    ```python
    from crypto_qlib.workflow.manager import WorkflowManager
-   wm = WorkflowManager('configs/workflow_config.yaml')
-   wm.run()
+   wm = WorkflowManager('configs/advanced_workflow.yaml')
+   wm.run_experiment()
+   ```
+
+3. 模擬盤運行 (Dry Run)：
+   ```python
+   from crypto_qlib.trade.bridge import DryRunBridge
+   # 假設您已有訓練好的模型
+   bridge = DryRunBridge(exchange_id='mexc', symbols=['BTC/USDT', 'ETH/USDT'], model=your_model)
+   bridge.step()
    ```
 
 ## 輸出
-系統會生成一個包含累積報酬、最大回撤、IC 分佈等圖表的 HTML 報告。
+系統會生成一個包含累積報酬、最大回撤、IC 分佈等圖表的 HTML 報告（如 `advanced_report.html`）。
