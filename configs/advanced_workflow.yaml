@@ -1,0 +1,36 @@
+data:
+  exchange_id: 'mexc'
+  limit: 10
+  timeframe: '1m'
+  start_time: '2026-06-05T00:00:00Z'
+  end_time: '2026-06-07T00:00:00Z'
+  train_end: '2026-06-06T12:00:00Z' # Used for single task
+  bin_dir: 'data/bin'
+  raw_dir: 'data/raw'
+
+rolling:
+  train_len: '1d'
+  step_len: '6h'
+
+model:
+  type: 'LightGBM'
+  params:
+    learning_rate: 0.05
+    num_leaves: 31
+
+backtest:
+  cash: 10000
+  commission: 0.0006
+  slippage_ticks: 3
+  topk: 5
+
+analysis:
+  output_report: 'rolling_report.html'
+
+optimization_goals:
+  Sharpe Ratio: 1.5
+  Profit Factor: 1.5
+
+search_space:
+  learning_rate: [0.01, 0.05]
+  topk: [3, 5]
