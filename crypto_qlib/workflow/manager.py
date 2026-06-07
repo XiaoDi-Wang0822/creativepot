@@ -28,34 +28,31 @@ class WorkflowManager:
         )
 
     def run_experiment(self):
-        # 1. Load Data
-        print("Loading data...")
+        return self._run(silent=False)
+
+    def run_experiment_silent(self):
+        return self._run(silent=True)
+
+    def _run(self, silent=False):
+        if not silent: print("Loading data...")
         instruments = self.provider.get_instruments()
         if not instruments:
-            print("No data found. Running data pipeline first...")
+            if not silent: print("No data found. Running data pipeline first...")
             self.run_data_pipeline()
             instruments = self.provider.get_instruments()
 
-        data = self.provider.load_data(
-            instruments,
-            self.config['data']['start_time'],
-            self.config['data']['end_time']
-        )
-
-        # 2. Extract Features
-        print("Extracting features...")
+        data = self.provider.load_data(instruments, self.config['data']['start_time'], self.config['data']['end_time'])
+        if not silent: print("Extracting features...")
         extractor = FeatureExtractor(data)
         features = extractor.add_alpha158().add_crypto_specific().add_labels().get_features().dropna()
 
-        # 3. Split Train/Test
         train_end = pd.to_datetime(self.config['data']['train_end']).replace(tzinfo=None)
         features_dt = features.index.get_level_values('datetime')
         train_df = features[features_dt <= train_end]
         test_df = features[features_dt > train_end]
 
-        # 4. Train Model
-        print(f"Training {self.config['model']['type']}...")
-        input_dim = train_df.shape[1] - 1 # excluding label
+        if not silent: print(f"Training {self.config['model']['type']}...")
+        input_dim = train_df.shape[1] - 1
         m_type = self.config['model']['type']
         m_params = self.config['model'].get('params', {})
 
@@ -69,15 +66,11 @@ class WorkflowManager:
             raise ValueError(f"Unknown model type: {m_type}")
 
         model.fit(train_df)
-
-        # 5. Predict
-        print("Predicting...")
+        if not silent: print("Predicting...")
         preds = model.predict(test_df)
-        test_df = test_df.copy()
-        test_df['score'] = preds
+        test_df = test_df.copy(); test_df['score'] = preds
 
-        # 6. Backtest
-        print("Backtesting...")
+        if not silent: print("Backtesting...")
         backtester = SimpleBacktester(
             initial_cash=self.config['backtest']['cash'],
             commission=self.config['backtest']['commission'],
@@ -85,11 +78,12 @@ class WorkflowManager:
         )
         report_df = backtester.run(test_df[['score']], data, topk=self.config['backtest']['topk'])
 
-        # 7. Analysis
-        print("Analyzing...")
         ic, rank_ic = Analyzer.calculate_ic(test_df[['score']], test_df[['label']])
         metrics = Analyzer.get_backtest_metrics(report_df)
-        print("Final Metrics:", metrics)
 
-        Analyzer.generate_report(report_df, ic, rank_ic, self.config['analysis']['output_report'])
-        print(f"Workflow Completed. Report saved to {self.config['analysis']['output_report']}")
+        if not silent:
+            print("Final Metrics:", metrics)
+            Analyzer.generate_report(report_df, ic, rank_ic, self.config['analysis']['output_report'])
+            print(f"Workflow Completed. Report saved to {self.config['analysis']['output_report']}")
+
+        return metrics

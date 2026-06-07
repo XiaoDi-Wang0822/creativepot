@@ -2,7 +2,6 @@ data:
   exchange_id: 'mexc'
   limit: 5
   timeframe: '1m'
-  # Note: Dates are in 2026 to match the environment's system time for recent data
   start_time: '2026-06-06T00:00:00Z'
   end_time: '2026-06-07T00:00:00Z'
   train_end: '2026-06-06T18:00:00Z'
@@ -10,13 +9,10 @@ data:
   raw_dir: 'data/raw'
 
 model:
-  type: 'Transformer'
+  type: 'LightGBM'
   params:
-    d_model: 64
-    nhead: 4
-    num_layers: 2
-    epochs: 5
-    batch_size: 1024
+    learning_rate: 0.05
+    num_leaves: 31
 
 backtest:
   cash: 10000
@@ -25,4 +21,15 @@ backtest:
   topk: 2
 
 analysis:
-  output_report: 'advanced_report.html'
+  output_report: 'optimized_report.html'
+
+# Optimization Goals
+optimization_goals:
+  Sharpe Ratio: 1.5
+  Profit Factor: 1.5
+
+# Search Space for Optimization
+search_space:
+  learning_rate: [0.01, 0.05, 0.1]
+  num_leaves: [15, 31, 63]
+  topk: [2, 5]
